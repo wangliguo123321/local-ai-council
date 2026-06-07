@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+PY="$DIR/.venv/bin/python"
+if [ ! -x "$PY" ]; then
+  PY="python3"
+fi
+
+cd "$DIR"
+if ! "$PY" - <<'PY' >/dev/null 2>&1
+import fastapi
+import yaml
+PY
+then
+  echo "Missing Python dependencies. Run ./bootstrap first, or install with:" >&2
+  echo "  python3 -m venv .venv" >&2
+  echo "  .venv/bin/pip install -r requirements.txt" >&2
+  exit 2
+fi
+
+"$PY" -m py_compile ai_council.py web_app.py agent_adapter.py test_core.py test_web.py
+"$PY" test_core.py
+"$PY" test_web.py
+"$DIR/preflight"
+
+echo "check-ok"

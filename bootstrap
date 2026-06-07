@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$DIR"
+
+PYTHON="${PYTHON:-python3}"
+if ! command -v "$PYTHON" >/dev/null 2>&1; then
+  echo "Python 3 is required. Set PYTHON=/path/to/python3 if needed." >&2
+  exit 1
+fi
+
+if [ ! -x "$DIR/.venv/bin/python" ]; then
+  "$PYTHON" -m venv .venv
+fi
+
+"$DIR/.venv/bin/python" -m pip install --upgrade pip
+"$DIR/.venv/bin/pip" install -r requirements.txt
+chmod +x "$DIR/ai-council" "$DIR/gui" "$DIR/串供" "$DIR/check" "$DIR/preflight"
+
+if [ ! -f "$DIR/agents.yaml" ] && [ ! -f "$HOME/.ai-council.yaml" ]; then
+  "$DIR/ai-council" init
+fi
+
+"$DIR/check"
+
+echo
+echo "Bootstrap complete."
+echo "Next:"
+echo "  ./ai-council list"
+echo "  ./ai-council doctor"
+echo "  ./gui"

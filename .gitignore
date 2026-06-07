@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*$py.class
+agents.yaml
+runs/
+council_memory/
+*.egg-info/
+build/
+dist/
+.env
+.env.*
+!.env.example
+.DS_Store

@@ -1,0 +1,23 @@
+summary_agent: claude
+output_dir: runs
+
+agents:
+  claude:
+    command: claude
+    args: ["-p", "{{prompt}}"]
+    timeout: 120
+
+  codex:
+    command: python3
+    args: ["agent_adapter.py", "codex", "{{prompt}}"]
+    timeout: 180
+
+  hermes:
+    command: hermes
+    args: ["-z", "{{prompt}}"]
+    timeout: 120
+
+  openclaw:
+    command: openclaw
+    args: ["infer", "model", "run", "--prompt", "{{prompt}}"]
+    timeout: 180

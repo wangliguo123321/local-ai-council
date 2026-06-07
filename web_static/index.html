@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>串供</title>
+  <style>
+    :root { color-scheme: light; --bg:#f6f3ef; --card:#fffaf4; --ink:#231f20; --muted:#7b6f67; --line:#eadfd3; --accent:#7c3aed; --accent2:#f97316; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+    header { padding: 28px 32px 12px; display: flex; justify-content: space-between; align-items: end; gap: 16px; }
+    h1 { margin: 0; font-size: 34px; letter-spacing: -0.04em; }
+    h2 { margin: 0; }
+    .subtitle { color: var(--muted); margin-top: 6px; }
+    main { display: grid; grid-template-columns: 360px minmax(420px, 1fr) 420px; gap: 16px; padding: 16px 24px 24px; min-height: calc(100vh - 92px); }
+    .left { display: grid; gap: 16px; align-content: start; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: 0 8px 24px rgba(40, 24, 10, 0.06); }
+    label { display: block; font-weight: 700; margin: 14px 0 8px; }
+    textarea, input { width: 100%; border: 1px solid var(--line); background: white; border-radius: 12px; padding: 12px; font: inherit; color: var(--ink); }
+    input[type="checkbox"] { width: auto; }
+    textarea { min-height: 140px; resize: vertical; }
+    button { border: 0; border-radius: 12px; padding: 11px 14px; font-weight: 800; cursor: pointer; background: var(--accent); color: white; }
+    button.secondary { background: #2f2933; }
+    button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+    button.tiny { padding: 6px 9px; border-radius: 9px; font-size: 12px; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .agents { display: grid; gap: 8px; }
+    .agent { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: white; }
+    .agent small { color: var(--muted); display: block; margin-top: 2px; }
+    .rounds { display: grid; gap: 14px; }
+    .round-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; }
+    .pill.ok { background:#dcfce7; color:#166534; }
+    .pill.bad { background:#fee2e2; color:#991b1b; }
+    .pill.warn { background:#fef3c7; color:#92400e; }
+    .answers { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .answer { border: 1px solid var(--line); border-radius: 14px; background: white; padding: 14px; }
+    .answer h3 { margin: 0; font-size: 16px; }
+    .answer-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .collapse-head { cursor: pointer; user-select: none; }
+    .collapse-head:hover h2 { color: var(--accent); }
+    .history-list { display: grid; gap: 8px; max-height: 360px; overflow: auto; margin-top: 12px; }
+    .history-item { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: white; cursor: pointer; }
+    .history-item.active { outline: 2px solid #c4a6ff; }
+    .history-item strong { display: block; font-size: 14px; line-height: 1.35; }
+    .history-item small { color: var(--muted); display: block; margin-top: 4px; }
+    .selected-history { display: grid; gap: 6px; margin-top: 8px; }
+    .selected-chip { display: flex; justify-content: space-between; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: white; font-size: 13px; }
+    .selected-chip button { padding: 4px 8px; border-radius: 8px; }
+    pre { white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.5; margin: 0; }
+    .muted { color: var(--muted); }
+    .final { border: 2px solid #d8c5ff; background: #fbf8ff; }
+    .toolbar { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .status { color: var(--muted); font-size: 13px; margin-top: 12px; }
+    .history-detail { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; max-height: 520px; overflow: auto; }
+    @media (max-width: 1200px) { main { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>串供</h1>
+      <div class="subtitle">多个本机 AI 先独立回答，再互相校准，最后生成最终串供答案。</div>
+    </div>
+    <div class="row">
+      <button class="ghost" onclick="loadHistory()">刷新历史</button>
+      <button class="ghost" onclick="loadConfig()">刷新智能体</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="left">
+      <section class="card">
+        <label for="question">问题</label>
+        <textarea id="question" placeholder="例如：我的怪癖有哪些？"></textarea>
+
+        <label for="maxRounds">最大串供轮数</label>
+        <input id="maxRounds" type="number" min="1" max="10" value="5" />
+
+        <label class="row" style="font-weight:700">
+          <input id="useMemory" type="checkbox" checked /> 自动带上相关记忆
+        </label>
+
+        <label>指定历史上下文</label>
+        <div id="selectedHistory" class="selected-history"><div class="muted">未指定历史；可从下方历史记录添加。</div></div>
+
+        <div class="between">
+          <label style="margin-bottom:8px">智能体</label>
+          <button class="ghost tiny" onclick="runDoctor()">健康检查</button>
+        </div>
+        <div id="agents" class="agents"><div class="muted">加载中...</div></div>
+
+        <div class="toolbar">
+          <button id="startBtn" onclick="startSession()">开始</button>
+          <button class="secondary" onclick="resetAll()">重置</button>
+        </div>
+        <div id="status" class="status"></div>
+      </section>
+
+      <section class="card">
+        <div class="between">
+          <h2>历史记录</h2>
+          <button class="ghost" onclick="loadHistory()">刷新</button>
+        </div>
+        <div id="historyList" class="history-list"><div class="muted">加载中...</div></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="round-title">
+        <h2>多轮回答</h2>
+        <span id="roundCount" class="pill">0 轮</span>
+      </div>
+      <div id="historyContextBox" class="answer" style="display:none; margin-bottom:14px"></div>
+      <div id="rounds" class="rounds"><div class="muted">提交问题后，这里会展示每个智能体的回答。</div></div>
+    </section>
+
+    <section class="card final">
+      <h2>最终串供答案</h2>
+      <div id="finalAnswer" class="muted" style="margin-top:14px">完成若干轮后点击“生成最终答案”。</div>
+      <label for="guidance">下一轮指导</label>
+      <textarea id="guidance" placeholder="可选：例如，重点比较谁更了解我的长期偏好"></textarea>
+      <div class="toolbar">
+        <button id="continueBtn" onclick="continueRound()" disabled>继续串供</button>
+        <button id="finalBtn" class="secondary" onclick="finalize()" disabled>生成最终答案</button>
+      </div>
+      <div id="historyDetail" class="history-detail muted">点击左侧历史记录可以查看详情，或加入上下文继续提问。</div>
+    </section>
+  </main>
+
+  <script>
+    let config = null;
+    let session = null;
+    let historyItems = [];
+    let selectedHistory = [];
+    let activeHistoryId = null;
+    let healthItems = {};
+    const collapsedRounds = new Set();
+
+    function setStatus(text) { document.getElementById('status').textContent = text || ''; }
+    function selectedAgents() {
+      return [...document.querySelectorAll('input[name="agent"]:checked')].map(x => x.value);
+    }
+
+    async function api(path, options = {}) {
+      const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `请求失败：${res.status}`);
+      }
+      return res.json();
+    }
+
+    async function loadConfig() {
+      try {
+        config = await api('/api/config');
+        const box = document.getElementById('agents');
+        box.innerHTML = '';
+        config.agents.forEach(agent => {
+          const div = document.createElement('label');
+          div.className = 'agent';
+          const health = healthItems[agent.name];
+          const healthClass = health ? (health.ok ? 'ok' : (health.status === 'timeout' || health.status === 'empty_output' ? 'warn' : 'bad')) : 'warn';
+          const healthText = health ? health.status : '未验证';
+          div.innerHTML = `<span><strong>${escapeHtml(agent.name)}</strong>${agent.summary ? ' <span class="pill">最终答案</span>' : ''} <span class="pill ${healthClass}">${escapeHtml(healthText)}</span><small>${escapeHtml(agent.command)} ${escapeHtml((agent.args || []).join(' '))}</small>${health ? `<small>${escapeHtml(health.error || health.stdout_excerpt || '')}</small>` : ''}</span><input name="agent" type="checkbox" value="${escapeHtml(agent.name)}" checked />`;
+          box.appendChild(div);
+        });
+        setStatus(`已加载 ${config.agents.length} 个智能体`);
+      } catch (err) {
+        setStatus(err.message);
+      }
+    }
+
+    async function runDoctor() {
+      setStatus('正在检查智能体真实可用性...');
+      try {
+        const data = await api('/api/doctor');
+        healthItems = Object.fromEntries((data.items || []).map(item => [item.name, item]));
+        await loadConfig();
+        const okCount = (data.items || []).filter(item => item.ok).length;
+        setStatus(`健康检查完成：${okCount}/${(data.items || []).length} 可用`);
+      } catch (err) {
+        setStatus(err.message);
+      }
+    }
+
+    async function loadHistory() {
+      try {
+        const data = await api('/api/history');
+        historyItems = data.items || [];
+        renderHistoryList();
+      } catch (err) {
+        document.getElementById('historyList').innerHTML = `<div class="muted">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderHistoryList() {
+      const box = document.getElementById('historyList');
+      box.innerHTML = '';
+      if (!historyItems.length) {
+        box.innerHTML = '<div class="muted">还没有历史记录。生成最终答案后会自动保存。</div>';
+        return;
+      }
+      historyItems.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `history-item${item.id === activeHistoryId ? ' active' : ''}`;
+        div.onclick = () => showHistory(item.id);
+        div.innerHTML = `<strong>${escapeHtml(item.question || '（无问题）')}</strong><small>${escapeHtml(item.created_at)} · ${item.round_count} 轮</small><small>${escapeHtml(item.final_excerpt || '')}</small>`;
+        box.appendChild(div);
+      });
+    }
+
+    async function showHistory(runId) {
+      activeHistoryId = runId;
+      renderHistoryList();
+      const detailBox = document.getElementById('historyDetail');
+      detailBox.className = 'history-detail muted';
+      detailBox.textContent = '正在加载历史详情...';
+      try {
+        const item = await api(`/api/history/${encodeURIComponent(runId)}`);
+        detailBox.className = 'history-detail';
+        detailBox.innerHTML = `
+          <div class="between"><h2>历史详情</h2><span class="pill">${escapeHtml(item.id)}</span></div>
+          <p><strong>问题：</strong>${escapeHtml(item.question || '')}</p>
+          <div class="toolbar">
+            <button onclick="addHistoryContext('${escapeAttrJs(item.id)}')">带上这段历史继续提问</button>
+            <button class="ghost" onclick="fillQuestionFromHistory('${escapeAttrJs(item.question || '')}')">复用这个问题</button>
+            <button class="ghost" onclick="copyText('${escapeAttrJs(item.final_answer || '')}', '已复制历史最终答案')">复制最终答案</button>
+          </div>
+          <details open>
+            <summary><strong>最终答案</strong></summary>
+            <pre>${escapeHtml(item.final_answer || '（没有最终答案）')}</pre>
+          </details>
+          <details>
+            <summary><strong>完整报告</strong></summary>
+            <pre>${escapeHtml(item.report || '（没有报告）')}</pre>
+          </details>
+        `;
+      } catch (err) {
+        detailBox.className = 'history-detail muted';
+        detailBox.textContent = err.message;
+      }
+    }
+
+    function addHistoryContext(runId) {
+      const item = historyItems.find(x => x.id === runId);
+      if (!item || selectedHistory.some(x => x.id === runId)) return;
+      selectedHistory.push({ id: item.id, question: item.question || item.id });
+      renderSelectedHistory();
+      setStatus('已加入历史上下文');
+    }
+
+    function removeHistoryContext(runId) {
+      selectedHistory = selectedHistory.filter(x => x.id !== runId);
+      renderSelectedHistory();
+    }
+
+    function renderSelectedHistory() {
+      const box = document.getElementById('selectedHistory');
+      box.innerHTML = '';
+      if (!selectedHistory.length) {
+        box.innerHTML = '<div class="muted">未指定历史；可从下方历史记录添加。</div>';
+        return;
+      }
+      selectedHistory.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'selected-chip';
+        div.innerHTML = `<span>${escapeHtml(item.question)}</span><button class="ghost" onclick="removeHistoryContext('${escapeAttrJs(item.id)}')">移除</button>`;
+        box.appendChild(div);
+      });
+    }
+
+    function fillQuestionFromHistory(question) {
+      document.getElementById('question').value = question;
+      setStatus('已填入历史问题');
+    }
+
+    async function startSession() {
+      const question = document.getElementById('question').value.trim();
+      if (!question) { setStatus('请先输入问题'); return; }
+      const agents = selectedAgents();
+      if (!agents.length) { setStatus('请至少选择一个智能体'); return; }
+      setBusy(true, '正在请求第 1 轮...');
+      try {
+        session = await api('/api/sessions', {
+          method: 'POST',
+          body: JSON.stringify({
+            question,
+            agents,
+            max_rounds: Number(document.getElementById('maxRounds').value || 5),
+            history_ids: selectedHistory.map(x => x.id),
+            use_memory: document.getElementById('useMemory').checked
+          })
+        });
+        renderSession();
+        setStatus(session.history_context ? '第 1 轮完成，已注入历史上下文' : '第 1 轮完成');
+      } catch (err) {
+        setStatus(err.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function continueRound() {
+      if (!session) return;
+      setBusy(true, '正在串供下一轮...');
+      try {
+        session = await api(`/api/sessions/${session.session_id}/continue`, {
+          method: 'POST',
+          body: JSON.stringify({ guidance: document.getElementById('guidance').value })
+        });
+        document.getElementById('guidance').value = '';
+        renderSession();
+        setStatus(`第 ${session.rounds.length} 轮完成`);
+      } catch (err) {
+        setStatus(err.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function finalize() {
+      if (!session) return;
+      setBusy(true, '正在生成最终串供答案...');
+      try {
+        session = await api(`/api/sessions/${session.session_id}/finalize`, { method: 'POST' });
+        renderSession();
+        await loadHistory();
+        setStatus(session.run_dir ? `已保存到 ${session.run_dir}` : '最终答案完成');
+      } catch (err) {
+        setStatus(err.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function renderSession() {
+      const contextBox = document.getElementById('historyContextBox');
+      if (session.history_context) {
+        contextBox.style.display = 'block';
+        contextBox.innerHTML = `<h3 style="margin-top:0">本次已带入的历史上下文</h3><pre>${escapeHtml(session.history_context)}</pre>`;
+      } else {
+        contextBox.style.display = 'none';
+        contextBox.innerHTML = '';
+      }
+
+      const roundsBox = document.getElementById('rounds');
+      roundsBox.innerHTML = '';
+      document.getElementById('roundCount').textContent = `${session.rounds.length} 轮`;
+      session.rounds.forEach(round => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const title = round.number === 1 ? '第 1 轮：独立回答' : `第 ${round.number} 轮：串供/校准`;
+        const collapsed = collapsedRounds.has(round.number);
+        card.innerHTML = `<div class="round-title collapse-head" onclick="toggleRound(${round.number})"><h2>${collapsed ? '▶' : '▼'} ${title}</h2><span class="pill">${round.results.length} 个回答</span></div>`;
+        if (!collapsed) {
+          const answers = document.createElement('div');
+          answers.className = 'answers';
+          round.results.forEach(result => {
+            const answerText = result.ok ? (result.stdout || '（无输出）') : ((result.error || '') + '\n' + (result.stderr || ''));
+            const answer = document.createElement('div');
+            answer.className = 'answer';
+            answer.innerHTML = `<div class="answer-head"><h3>${escapeHtml(result.name)} ${result.ok ? '' : '<span class="muted">失败</span>'}</h3><button class="ghost tiny" onclick="copyText('${escapeAttrJs(answerText)}', '已复制 ${escapeAttrJs(result.name)} 的回答')">复制</button></div><pre>${escapeHtml(answerText)}</pre>`;
+            answers.appendChild(answer);
+          });
+          card.appendChild(answers);
+        }
+        roundsBox.appendChild(card);
+      });
+
+      const finalBox = document.getElementById('finalAnswer');
+      if (session.final_answer) {
+        const finalText = session.final_answer.stdout || session.final_answer.error || '（无输出）';
+        finalBox.className = '';
+        finalBox.innerHTML = `<div class="toolbar" style="margin-top:0; margin-bottom:10px"><button class="ghost" onclick="copyText('${escapeAttrJs(finalText)}', '已复制最终串供答案')">复制最终答案</button></div><pre>${escapeHtml(finalText)}</pre>`;
+      } else {
+        finalBox.className = 'muted';
+        finalBox.textContent = '完成若干轮后点击“生成最终答案”。';
+      }
+      document.getElementById('continueBtn').disabled = session.rounds.length >= session.max_rounds;
+      document.getElementById('finalBtn').disabled = false;
+    }
+
+    function toggleRound(roundNumber) {
+      if (collapsedRounds.has(roundNumber)) {
+        collapsedRounds.delete(roundNumber);
+      } else {
+        collapsedRounds.add(roundNumber);
+      }
+      renderSession();
+    }
+
+    async function copyText(text, message = '已复制') {
+      await navigator.clipboard.writeText(text);
+      setStatus(message);
+    }
+
+    function setBusy(busy, text = '') {
+      document.getElementById('startBtn').disabled = busy;
+      document.getElementById('continueBtn').disabled = busy || !session || session.rounds.length >= session.max_rounds;
+      document.getElementById('finalBtn').disabled = busy || !session;
+      if (busy) setStatus(text);
+    }
+
+    function resetAll() {
+      session = null;
+      document.getElementById('rounds').innerHTML = '<div class="muted">提交问题后，这里会展示每个智能体的回答。</div>';
+      document.getElementById('historyContextBox').style.display = 'none';
+      document.getElementById('historyContextBox').innerHTML = '';
+      document.getElementById('finalAnswer').className = 'muted';
+      document.getElementById('finalAnswer').textContent = '完成若干轮后点击“生成最终答案”。';
+      document.getElementById('roundCount').textContent = '0 轮';
+      document.getElementById('continueBtn').disabled = true;
+      document.getElementById('finalBtn').disabled = true;
+      setStatus('');
+    }
+
+    function escapeHtml(text) {
+      return String(text).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+    }
+
+    function escapeJs(text) {
+      return String(text).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '');
+    }
+
+    function escapeAttrJs(text) {
+      return escapeHtml(escapeJs(text));
+    }
+
+    loadConfig();
+    loadHistory();
+  </script>
+</body>
+</html>

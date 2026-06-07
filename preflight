@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$DIR"
+
+patterns=(
+  'ninebot'
+  '/Users/'
+  'Documents/GitHub'
+  'api[_-]?key'
+  'secret'
+  'password'
+  'passwd'
+  'bearer [A-Za-z0-9._-]+'
+  'sk-[A-Za-z0-9]{20,}'
+  'AKIA[0-9A-Z]{16}'
+  'ghp_[A-Za-z0-9_]+'
+  'github_pat_[A-Za-z0-9_]+'
+  'OPENAI_API_KEY'
+  'ANTHROPIC_API_KEY'
+  'GEMINI_API_KEY'
+  'BEGIN [A-Z ]*PRIVATE KEY'
+)
+
+allowed=(
+)
+
+matches=""
+for pattern in "${patterns[@]}"; do
+  result="$(rg -n --hidden --glob '!.git/**' --glob '!.venv/**' --glob '!runs/**' --glob '!council_memory/**' --glob '!*.egg-info/**' --glob '!build/**' --glob '!dist/**' --glob '!preflight' --glob '!check' -i "$pattern" . || true)"
+  if [ -n "$result" ]; then
+    matches+="$result"$'\n'
+  fi
+done
+
+if [ -z "$matches" ]; then
+  echo "preflight-sensitive-scan-ok"
+  exit 0
+fi
+
+filtered="$matches"
+if [ "${#allowed[@]}" -gt 0 ]; then
+  for item in "${allowed[@]}"; do
+    filtered="$(printf '%s' "$filtered" | grep -F -v "$item" || true)"
+  done
+fi
+
+if [ -n "$(printf '%s' "$filtered" | sed '/^[[:space:]]*$/d')" ]; then
+  echo "Potential sensitive content found:" >&2
+  printf '%s' "$filtered" >&2
+  exit 1
+fi
+
+echo "preflight-sensitive-scan-ok"
