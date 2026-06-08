@@ -12,8 +12,9 @@ Start here:
 
 1. Read this README for product intent and user-facing workflows.
 2. Read [AGENTS.md](AGENTS.md) for implementation map, safety rules, and agent-specific guidance.
-3. Run `./check` before and after changes.
-4. Do not commit local configs, run outputs, memory files, `.env` files, or generated artifacts.
+3. Read [agent.json](agent.json) for machine-readable install/run/check entrypoints.
+4. Run `./check` before and after changes.
+5. Do not commit local configs, run outputs, memory files, `.env` files, or generated artifacts.
 
 Main files:
 
@@ -24,6 +25,8 @@ Main files:
 | `web_static/index.html` | Single-file browser UI |
 | `agent_adapter.py` | Non-interactive adapters for CLIs that need special handling |
 | `agents.yaml.example` | Example local agent configuration |
+| `agent.json` | Machine-readable manifest for agents: install, check, ask, GUI, outputs, safety |
+| `skills/local-ai-council/SKILL.md` | Skill-style instructions for agents that support local skills |
 | `test_core.py` | Core tests that do not require real AI CLIs |
 | `test_web.py` | Web/API/security/context regression tests |
 | `bootstrap` | One-command setup for new users |
@@ -172,6 +175,50 @@ Only print final synthesis:
 ```bash
 ./ai-council "What should this project improve next?" --rounds 3 --final-only
 ```
+
+## Agent-native usage
+
+This repo is intended to be usable by both humans and coding agents. Agents should prefer the machine-readable entrypoints instead of guessing commands from prose.
+
+### Machine-readable manifest
+
+[`agent.json`](agent.json) describes:
+
+- what this tool does;
+- how to bootstrap, check, ask, run doctor, and launch the GUI;
+- where outputs are saved;
+- which files are sensitive and must not be published;
+- local safety boundaries.
+
+A coding agent can run the standard flow:
+
+```bash
+./bootstrap
+./check
+./ai-council doctor
+./ai-council "What should this project improve next?" --rounds 2 --final-only
+```
+
+### Skill-style package
+
+[`skills/local-ai-council/SKILL.md`](skills/local-ai-council/SKILL.md) provides a skill-style wrapper for agents that support local skills. Helper scripts live under `skills/local-ai-council/scripts/`:
+
+```bash
+skills/local-ai-council/scripts/check
+skills/local-ai-council/scripts/doctor
+skills/local-ai-council/scripts/ask "What should this project improve next?" 2
+skills/local-ai-council/scripts/gui
+```
+
+### MCP vs Skills
+
+The current repo ships a skill-style interface first because it is simple, local, clone-friendly, and requires no long-running protocol server. MCP is a good next layer when agents need stable tool calls such as `ask_council`, `doctor_agents`, `list_runs`, and `read_run` across multiple clients.
+
+Recommended path:
+
+1. Use `agent.json` + `skills/local-ai-council/` for immediate agent discovery and execution.
+2. Add an MCP server when the CLI/GUI behavior stabilizes enough to expose as typed tools.
+3. Keep the CLI as the source of truth so humans, skills, and MCP share one implementation.
 
 ## GUI features
 

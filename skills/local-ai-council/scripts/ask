@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+QUESTION="${1:-}"
+if [ -z "$QUESTION" ]; then
+  echo "Usage: $0 <question> [rounds] [extra ai-council args...]" >&2
+  exit 2
+fi
+ROUNDS="${2:-2}"
+shift || true
+shift || true
+exec "$DIR/ai-council" "$QUESTION" --rounds "$ROUNDS" --final-only "$@"

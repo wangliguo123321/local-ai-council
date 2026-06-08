@@ -1,0 +1,52 @@
+{
+  "schema_version": "0.1",
+  "name": "local-ai-council",
+  "display_name": "Local AI Council",
+  "description": "Local-first multi-agent council that asks multiple local AI CLIs, runs optional calibration rounds, synthesizes a final answer, and saves audit trails.",
+  "kind": "local-agent-tool",
+  "homepage": "https://github.com/wangliguo123321/local-ai-council",
+  "license": "MIT",
+  "entrypoints": {
+    "bootstrap": "./bootstrap",
+    "check": "./check",
+    "doctor": "./ai-council doctor",
+    "ask": "./ai-council \"{{question}}\" --rounds {{rounds}} --final-only",
+    "council": "./串供 \"{{question}}\"",
+    "gui": "./gui"
+  },
+  "default_parameters": {
+    "question": "What should this project improve next?",
+    "rounds": 2
+  },
+  "outputs": {
+    "runs_dir": "runs/",
+    "memory_file": "council_memory/memories.jsonl",
+    "final_answer_file": "runs/<run-id>/final-answer.md",
+    "result_index_file": "runs/<run-id>/result.json",
+    "report_file": "runs/<run-id>/report.md"
+  },
+  "configuration": {
+    "example": "agents.yaml.example",
+    "local_config": "agents.yaml",
+    "user_config": "~/.ai-council.yaml",
+    "sensitive_files": ["agents.yaml", ".env", ".env.*", "runs/", "council_memory/"]
+  },
+  "requirements": {
+    "runtime": "Python 3.10+",
+    "python_dependencies": "requirements.txt",
+    "optional_local_ai_clis": ["claude", "codex", "hermes", "openclaw"]
+  },
+  "safety": {
+    "network": "Local GUI binds to 127.0.0.1 by default.",
+    "execution": "Agent commands come from local agents.yaml and run as argument arrays without shell=True.",
+    "privacy": "Run outputs and memory may contain private prompts; do not publish runs/ or council_memory/."
+  },
+  "agent_instructions": [
+    "Run ./bootstrap first on a fresh clone.",
+    "Run ./check before and after modifying code.",
+    "Run ./ai-council doctor to validate real configured AI CLIs.",
+    "Use ./ai-council '<question>' --rounds 2 --final-only for a non-interactive final answer.",
+    "Use ./gui for the local browser UI.",
+    "Never commit agents.yaml, runs/, council_memory/, .env files, or generated artifacts."
+  ]
+}

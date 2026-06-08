@@ -29,6 +29,13 @@ It is not a neural-network Mixture of Experts implementation.
 
 If no real AI CLI is installed, `./check` still works because tests use fake agents.
 
+## Agent-native package
+
+- `agent.json` is the machine-readable manifest for install/check/ask/GUI entrypoints.
+- `skills/local-ai-council/SKILL.md` is the skill-style entrypoint for agents that support local skills.
+- Keep the CLI as the source of truth; skills and future MCP tools should wrap `./ai-council`, not duplicate council logic.
+- If adding an MCP server later, expose stable typed tools around existing capabilities: `ask_council`, `doctor_agents`, `list_runs`, and `read_run`.
+
 ## Safety rules
 
 - Do not use `shell=True` with user-provided content.

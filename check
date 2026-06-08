@@ -18,9 +18,10 @@ then
   exit 2
 fi
 
-"$PY" -m py_compile ai_council.py web_app.py agent_adapter.py test_core.py test_web.py
+"$PY" -m py_compile ai_council.py web_app.py agent_adapter.py test_core.py test_web.py test_agent_package.py
 "$PY" test_core.py
 "$PY" test_web.py
+"$PY" test_agent_package.py
 "$DIR/preflight"
 
 echo "check-ok"
