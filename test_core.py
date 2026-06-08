@@ -9,7 +9,9 @@ from ai_council import (
     AgentResult,
     CouncilRound,
     build_calibration_prompt,
+    build_council_state,
     build_initial_prompt,
+    build_round_digest,
     build_summary_prompt,
     doctor_agents,
     load_config,
@@ -54,8 +56,57 @@ def test_structured_prompts() -> None:
     assert "## 校准后的最终回答" in calibration
 
     summary = build_summary_prompt("问题", rounds)
+    assert "CouncilState" in summary
+    assert "结构化审议状态" in summary
     assert "## 分歧与少数派观点" in summary
+    assert "## 裁决理由" in summary
     assert "## 质量审查" in summary
+
+
+def test_council_state_digest() -> None:
+    output_a = """## 结论
+应该做 A。
+
+## 主要依据
+A 有用户价值。
+
+## 反对意见或风险
+A 可能增加复杂度。
+
+## 不确定点
+还缺少真实用户数据。
+
+## 置信度
+中，因为证据有限。
+"""
+    output_b = """## 校准后的最终回答
+同意做 A，但先小步验证。
+
+## 接受的观点
+A 有用户价值。
+
+## 不同意或需要降级的观点
+不能直接大规模投入。
+
+## 仍不确定的地方
+用户规模未知。
+
+## 置信度
+中。
+"""
+    rounds = [
+        CouncilRound(1, {"a": "prompt"}, [AgentResult("a", True, output_a, "", 0, None, 0.1)]),
+        CouncilRound(2, {"b": "prompt"}, [AgentResult("b", True, output_b, "", 0, None, 0.1)]),
+    ]
+    digest = build_round_digest(rounds[0])
+    assert digest.agent_findings["a"]["conclusion"] == "应该做 A。"
+    assert "复杂度" in digest.risk_points[0]
+
+    state = build_council_state("问题", rounds)
+    assert state.latest_positions["b"] == "同意做 A，但先小步验证。"
+    assert any("用户价值" in item for item in state.accepted_points)
+    assert any("大规模投入" in item for item in state.disagreement_points)
+    assert state.confidence_by_agent["a"].startswith("中")
 
 
 def test_unique_save_run() -> None:
@@ -113,6 +164,7 @@ def test_doctor_agents() -> None:
 def main() -> None:
     test_config_validation()
     test_structured_prompts()
+    test_council_state_digest()
     test_unique_save_run()
     test_fake_agent_flow()
     test_doctor_agents()

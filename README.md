@@ -470,12 +470,13 @@ Then run:
 
 ### v0.3 Structured deliberation protocol
 
-- [ ] RoundDigest;
-- [ ] CouncilState;
-- [ ] Claim / Evidence / Risk / Confidence;
+- [x] lightweight RoundDigest;
+- [x] lightweight CouncilState;
+- [x] final synthesis uses CouncilState as primary input instead of raw transcript-only summarization;
+- [x] structured state saved in `result.json` and report;
+- [ ] Claim / Evidence / Risk / Confidence as first-class structured objects;
 - [ ] consensus/disagreement matrix;
-- [ ] final synthesis based on CouncilState instead of full transcript;
-- [ ] quality panel in final report.
+- [ ] richer quality panel in final report.
 
 ### v0.4 Distribution and ecosystem
 

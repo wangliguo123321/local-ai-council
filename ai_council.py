@@ -80,6 +80,28 @@ class CouncilRound:
     results: list[AgentResult]
 
 
+@dataclass
+class RoundDigest:
+    round_number: int
+    agent_findings: dict[str, dict[str, str]]
+    accepted_points: list[str]
+    disagreement_points: list[str]
+    risk_points: list[str]
+    uncertainty_points: list[str]
+
+
+@dataclass
+class CouncilState:
+    question: str
+    round_digests: list[RoundDigest]
+    latest_positions: dict[str, str]
+    accepted_points: list[str]
+    disagreement_points: list[str]
+    risk_points: list[str]
+    uncertainty_points: list[str]
+    confidence_by_agent: dict[str, str]
+
+
 def default_config_path() -> Path:
     local = ROOT_DIR / "agents.yaml"
     if local.exists():
@@ -250,6 +272,125 @@ def render_round_transcript(rounds: list[CouncilRound]) -> str:
     return "\n\n".join(sections)
 
 
+def compact_text(text: str, limit: int = 700) -> str:
+    value = " ".join(line.strip() for line in text.splitlines() if line.strip())
+    if len(value) <= limit:
+        return value
+    return value[:limit].rstrip() + "..."
+
+
+def extract_section(text: str, heading: str) -> str:
+    markers = [f"## {heading}", f"### {heading}"]
+    lines = text.splitlines()
+    start = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped in markers:
+            start = index + 1
+            break
+    if start is None:
+        return ""
+    collected = []
+    for line in lines[start:]:
+        stripped = line.strip()
+        if stripped.startswith("## ") or stripped.startswith("### "):
+            break
+        collected.append(line)
+    return compact_text("\n".join(collected))
+
+
+def first_present_section(text: str, headings: list[str]) -> str:
+    for heading in headings:
+        value = extract_section(text, heading)
+        if value:
+            return value
+    return ""
+
+
+def add_unique(items: list[str], value: str, limit: int = 12) -> None:
+    value = compact_text(value, 500)
+    if value and value not in items and len(items) < limit:
+        items.append(value)
+
+
+def build_round_digest(council_round: CouncilRound) -> RoundDigest:
+    agent_findings = {}
+    accepted_points: list[str] = []
+    disagreement_points: list[str] = []
+    risk_points: list[str] = []
+    uncertainty_points: list[str] = []
+    for result in council_round.results:
+        text = result.stdout if result.ok else result.stderr
+        findings = {
+            "conclusion": first_present_section(text, ["校准后的最终回答", "结论", "建议"]),
+            "evidence": first_present_section(text, ["主要依据", "接受的观点", "新增或修正的判断"]),
+            "disagreement": first_present_section(text, ["不同意或需要降级的观点", "反对意见或风险", "分歧与少数派观点"]),
+            "uncertainty": first_present_section(text, ["仍不确定的地方", "不确定点", "仍不确定或需要更多证据的地方"]),
+            "confidence": first_present_section(text, ["置信度"]),
+            "status": "success" if result.ok else f"failed: {result.error}",
+        }
+        if not findings["conclusion"]:
+            findings["conclusion"] = compact_text(text, 500) or "(no output)"
+        agent_findings[result.name] = findings
+        add_unique(accepted_points, findings["evidence"] or findings["conclusion"])
+        add_unique(disagreement_points, findings["disagreement"])
+        add_unique(risk_points, first_present_section(text, ["反对意见或风险", "不同意或需要降级的观点"]))
+        add_unique(uncertainty_points, findings["uncertainty"])
+    return RoundDigest(council_round.number, agent_findings, accepted_points, disagreement_points, risk_points, uncertainty_points)
+
+
+def build_council_state(question: str, rounds: list[CouncilRound]) -> CouncilState:
+    round_digests = [build_round_digest(council_round) for council_round in rounds]
+    latest_positions: dict[str, str] = {}
+    accepted_points: list[str] = []
+    disagreement_points: list[str] = []
+    risk_points: list[str] = []
+    uncertainty_points: list[str] = []
+    confidence_by_agent: dict[str, str] = {}
+    for digest in round_digests:
+        for item in digest.accepted_points:
+            add_unique(accepted_points, item, 20)
+        for item in digest.disagreement_points:
+            add_unique(disagreement_points, item, 20)
+        for item in digest.risk_points:
+            add_unique(risk_points, item, 20)
+        for item in digest.uncertainty_points:
+            add_unique(uncertainty_points, item, 20)
+        for agent_name, finding in digest.agent_findings.items():
+            latest_positions[agent_name] = finding.get("conclusion", "")
+            if finding.get("confidence"):
+                confidence_by_agent[agent_name] = finding["confidence"]
+    return CouncilState(question, round_digests, latest_positions, accepted_points, disagreement_points, risk_points, uncertainty_points, confidence_by_agent)
+
+
+def render_bullets(items: list[str]) -> str:
+    if not items:
+        return "- 暂无明确记录"
+    return "\n".join(f"- {item}" for item in items)
+
+
+def render_council_state(state: CouncilState) -> str:
+    lines = ["# CouncilState", "", f"原始问题：{state.question}", "", "## 最新立场"]
+    for agent_name, position in state.latest_positions.items():
+        lines.append(f"- {agent_name}: {position or '暂无明确立场'}")
+    lines.extend(["", "## 候选共识/有效依据", render_bullets(state.accepted_points)])
+    lines.extend(["", "## 分歧/需要降级的观点", render_bullets(state.disagreement_points)])
+    lines.extend(["", "## 风险", render_bullets(state.risk_points)])
+    lines.extend(["", "## 仍不确定", render_bullets(state.uncertainty_points)])
+    lines.extend(["", "## 各智能体置信度"])
+    if state.confidence_by_agent:
+        for agent_name, confidence in state.confidence_by_agent.items():
+            lines.append(f"- {agent_name}: {confidence}")
+    else:
+        lines.append("- 暂无明确记录")
+    lines.extend(["", "## 每轮摘要"])
+    for digest in state.round_digests:
+        lines.append(f"### 第 {digest.round_number} 轮")
+        for agent_name, finding in digest.agent_findings.items():
+            lines.append(f"- {agent_name}: {finding.get('conclusion', '暂无明确结论')}")
+    return "\n".join(lines)
+
+
 def build_calibration_prompt(question: str, agent_name: str, previous_rounds: list[CouncilRound], guidance: str | None = None) -> str:
     transcript = render_round_transcript(previous_rounds)
     guidance_section = f"\n本轮用户额外指导：{guidance}\n" if guidance else ""
@@ -355,22 +496,28 @@ async def run_council(agents: dict, question: str, rounds_count: int, ask_each_r
 
 
 def build_summary_prompt(question: str, rounds: list[CouncilRound]) -> str:
+    state = build_council_state(question, rounds)
+    council_state = render_council_state(state)
     transcript = render_round_transcript(rounds)
-    return f"""你是最终答案合成器兼质量审查员。请基于多个 AI 智能体对同一个问题的多轮独立回答、互相校准与用户补充指导，产出一份面向原问题的最终高质量回答。
+    return f"""你是最终答案合成器兼质量审查员。请基于 CouncilState 对多个 AI 智能体的多轮独立回答、互相校准与用户补充指导进行最终裁决，产出一份面向原问题的高质量回答。
 
 原始问题：{question}
 
-多轮回答记录：
+结构化审议状态（这是主要依据）：
+
+{council_state}
+
+原始回答记录（只作为核对和追溯，不要机械汇总）：
 
 {transcript}
 
 你的目标不是简单总结谁说了什么，而是给用户一份尽可能完善、准确、可直接使用、可审计的最终答案。
 
-要求：
-1. 直接回答原始问题。
-2. 综合各模型的有效观点，去掉重复、空话和明显不可靠内容。
-3. 明确区分共识、分歧、少数派观点和证据强弱。
-4. 如果各模型有冲突，选择更有依据的一方，并说明为什么。
+裁决原则：
+1. 不以某一个模型为先，以证据强度、可验证性、与原问题相关性、风险意识为先。
+2. 多数模型一致但证据弱时，要降级表达；少数模型有强证据时，要保留为重要少数派观点。
+3. 冲突内容要明确选择、融合或搁置，并说明依据。
+4. 不要为了形成一致而抹平关键分歧。
 5. 对没有足够证据的判断要降级表达，不要装作确定。
 6. 检查是否答非所问、是否有无依据断言、是否遗漏用户要求。
 7. 如果问题涉及用户本人偏好、习惯或怪癖，请区分“较有把握”“可能存在”“需要更多证据”。
@@ -385,6 +532,9 @@ def build_summary_prompt(question: str, rounds: list[CouncilRound]) -> str:
 ## 共识
 
 ## 分歧与少数派观点
+
+## 裁决理由
+说明为什么采用、降级或搁置某些观点。
 
 ## 质量审查
 说明是否存在答非所问、无依据断言、遗漏要求或需要降级的判断。
@@ -422,6 +572,7 @@ def report_data(
         "effective_question": effective_question or question,
         "history_context": history_context,
         "run_dir": str(run_dir) if run_dir else None,
+        "council_state": asdict(build_council_state(effective_question or question, rounds)),
         "rounds": [
             {
                 "number": council_round.number,
@@ -482,6 +633,7 @@ def format_markdown_report(question: str, rounds: list[CouncilRound], summary: A
             append_result(lines, result)
             lines.append("")
 
+    lines.extend(["## 结构化审议状态", "", render_council_state(build_council_state(question, rounds)), ""])
     lines.extend(["## 最终串供答案", ""])
     append_summary(lines, summary)
     if run_dir:
