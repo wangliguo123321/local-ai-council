@@ -6,6 +6,12 @@
   "kind": "local-agent-tool",
   "homepage": "https://github.com/wangliguo123321/local-ai-council",
   "license": "MIT",
+  "documentation": {
+    "english": "README.md",
+    "chinese": "README.zh-CN.md",
+    "agent_guide": "AGENTS.md",
+    "skill": "skills/local-ai-council/SKILL.md"
+  },
   "entrypoints": {
     "bootstrap": "./bootstrap",
     "check": "./check",

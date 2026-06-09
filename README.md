@@ -1,5 +1,7 @@
 # Local AI Council / 串供
 
+**Languages:** [English](README.md) | [中文](README.zh-CN.md)
+
 > Local-first multi-agent council for independent answers, calibration, synthesis, and audit trails.
 
 Local AI Council lets you ask one question once, send it to multiple local AI CLIs, compare their independent answers, run calibration rounds, and produce a final synthesized answer with full local records.
